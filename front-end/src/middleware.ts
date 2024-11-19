@@ -20,7 +20,7 @@ export const middleware = async (request: NextRequest) => {
     //   return NextResponse.redirect(new URL('/admin', request.url));
     // } else if (userProfile?.role === 'user') {
     //   return NextResponse.redirect(new URL('/', request.nextUrl));
-    }
+    // }
     // if (userProfile?.role !== 'admin' && pathname === '/admin') {
     //   return NextResponse.redirect(new URL('/', request.url));
     // }
