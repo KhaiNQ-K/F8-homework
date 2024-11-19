@@ -1,22 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from './app/lib/session';
-const publicRoutes = ['/login', '/register'];
+import { getProfile } from './app/actions/get-profile';
+import { setSession } from './app/lib/session';
+const isPublicRoute = ['/auth/login', '/auth/register'];
+export const middleware = async (request: NextRequest) => {
+  const pathname = request.nextUrl.pathname;
+  if (!isPublicRoute.includes(pathname)) {
+    // Check authentication
+    const accessToken = request.cookies.get('session')?.value;
+    if (!accessToken) {
+      return NextResponse.redirect(new URL('/auth/login', request.url));
+    }
 
-export default async function middleware(req: NextRequest) {
-  const pathname = req.nextUrl.pathname;
-  const isPublicRoute = publicRoutes.includes(pathname);
-  const res = new NextResponse();
-  const session = await getSession(req, res);
-  if (isPublicRoute && session?.jwt && req.nextUrl.pathname === '/') {
-    return NextResponse.redirect(new URL('/', req.nextUrl));
+    //verify token
+    const { data: userProfile, success } = await getProfile(accessToken);
+    if (!success) {
+      return NextResponse.redirect(new URL('/auth/login', request.url));
+    }
+    // if (userProfile?.role === 'admin') {
+    //   return NextResponse.redirect(new URL('/admin', request.url));
+    // } else if (userProfile?.role === 'user') {
+    //   return NextResponse.redirect(new URL('/', request.nextUrl));
+    }
+    // if (userProfile?.role !== 'admin' && pathname === '/admin') {
+    //   return NextResponse.redirect(new URL('/', request.url));
+    // }
+    // if (userProfile?.role === 'user') {
+    //   return NextResponse.redirect(new URL('/admin', request.url));
+    // }
+    // if (userProfile?.role === 'admin') {
+    //   return NextResponse.redirect(new URL('/admin', request.url));
+    // }
+    await setSession(accessToken, userProfile);
   }
-  if (!session?.jwt && pathname !== '/auth/login' && pathname !== '/auth/register') {
-    const loginUrl = new URL('/auth/login', req.url);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  return NextResponse.next();
-}
+};
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|.*\\.png$).*)'],
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - api (API routes)
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
+     */
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+  ],
 };

@@ -1,24 +1,53 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { JWT_ACCESS_EXPIRED } from 'src/config';
+import { PrismaService } from 'src/services/prisma.service';
+import { RedisService } from 'src/services/redis/redis.service';
 import { UsersService } from 'src/users/users.service';
-import { AuthLoginDto } from './dto/auth.login';
 import { Hashing } from 'src/utils/hasing';
+import { JWTUtil } from 'src/utils/jwtUtil';
+import { AuthLoginDto } from './dto/auth.login';
 
 @Injectable()
 export class AuthService {
   constructor(
     private userService: UsersService,
-    private jwtService: JwtService,
+    private redisService: RedisService,
+    private prisma: PrismaService,
   ) {}
-  async login(data: AuthLoginDto): Promise<{ access_token: string }> {
+  async login(data: AuthLoginDto): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expiresIn: string;
+  }> {
     const user = await this.userService.findByEmail(data.email);
     const isVerify = Hashing.verify(data.password, user.passwordHash);
-    if (!user?.passwordHash && !isVerify) {
+    if (!user?.passwordHash || !isVerify) {
       throw new UnauthorizedException();
     }
-    const payload = { sub: user.id, email: user.email };
+    const payload = { userId: user.id, email: user.email };
+    const accessToken = JWTUtil.generateAccessToken(payload);
+    const refreshToken = JWTUtil.generateRefreshToken();
+    await this.redisService.set(
+      `refreshToken_${refreshToken}`,
+      JSON.stringify({ userId: user.id, email: user.email }),
+    );
     return {
-      access_token: await this.jwtService.signAsync(payload),
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expiresIn: JWT_ACCESS_EXPIRED,
     };
+  }
+  async getUserByField(key: string, value: string) {
+    return this.prisma.user.findFirst({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+      },
+      where: {
+        [key]: value,
+      },
+    });
   }
 }

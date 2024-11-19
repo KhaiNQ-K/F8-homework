@@ -1,31 +1,26 @@
-import {
-  getIronSession,
-  getServerActionIronSession,
-  IronSessionData,
-  IronSessionOptions,
-} from 'iron-session';
 import { cookies } from 'next/headers';
-export const sessionOptions: IronSessionOptions = {
-  password: process.env.SESSION_SECRET as string,
-  cookieName: 'session',
-  cookieOptions: {
-    secure: process.env.NODE_ENV === 'production',
-  },
+
+export const setSession = async (accessToken: string, user: any) => {
+  await fetch(`${process.env.APP_URL}/api/session`, {
+    method: 'POST',
+    headers: {
+      'Content-type': 'application/json',
+    },
+    body: JSON.stringify({ accessToken, user }),
+  });
 };
-declare module 'iron-session' {
-  interface IronSessionData {
-    jwt?: string;
-    isLoggedIn: boolean;
+export const getSession = async () => {
+  const cookieStore = await cookies();
+  const token = cookieStore.get('session')?.value;
+  const res = await fetch(`${process.env.APP_URL}/api/session`, {
+    headers: {
+      'access-token': token,
+    },
+  });
+  if (!res.ok) {
+    return false;
   }
-}
-const getSession = async (req: Request, res: Response) => {
-  const session = getIronSession<IronSessionData>(req, res, sessionOptions);
-  return session;
-};
+  const { user } = await res.json();
 
-const getServerActionSession = async () => {
-  const session = getServerActionIronSession<IronSessionData>(sessionOptions, await cookies());
-  return session;
+  return user;
 };
-
-export { getServerActionSession, getSession };

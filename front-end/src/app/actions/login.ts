@@ -1,22 +1,30 @@
 'use server';
 
 import { authApi } from '@/api-client/auth-api';
-import { LoginPayload, LoginResponse } from '@/models';
-import { getServerActionSession } from '../lib/session';
+import { LoginPayload, LoginResponse, ResponseData } from '@/models';
+import { cookies } from 'next/headers';
 import { redirect, RedirectType } from 'next/navigation';
-
-export async function handleLogin(data: LoginPayload): Promise<LoginResponse | void> {
+const DAY_BY_SECOND = 60 * 60 * 24;
+export async function handleLogin(
+  payload: LoginPayload
+): Promise<ResponseData<LoginResponse> | void> {
   try {
-    const res = await authApi.login(data);
-    const jwtToken = res.access_token;
-
-    const session = await getServerActionSession();
-    session.jwt = jwtToken;
-    session.isLoggedIn = true;
-    await session.save();
+    const {
+      data: { access_token, refresh_token },
+    } = await authApi.login(payload);
+    // const jwtToken = res.data.access_token;
+    // const session = await getServerActionSession();
+    // session.jwt = jwtToken;
+    // session.isLoggedIn = true;
+    // await session.save();
+    (await cookies()).set('session', access_token, {
+      httpOnly: true,
+      secure: false,
+      path: '/',
+      maxAge: DAY_BY_SECOND,
+    });
     // Return the redirect rather than calling it directly
-  } catch (err) {
-    console.log('error', err);
+  } catch {
     return {
       success: false,
       message: 'Tài khoản hoặc mật khẩu không chính xác',
